@@ -1,9 +1,10 @@
-import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, useMapEvents, Marker, Popup } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import * as L from 'leaflet';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Layers, ChevronDown, ChevronRight, Maximize, Minimize, Search, X, Info, FileText, ArrowRight, Palette, RotateCcw } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import type { ShapefileLayer } from '../utils/shapefileParser';
 import { useAuth } from '../contexts/AuthContext';
 import type { Feature } from 'geojson';
@@ -299,9 +300,12 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
     return layerColors[layerName] || defaultColor;
   };
 
-  const renderedGeoJSONLayers = useMemo(() => {
-    return layers.map((layer) => {
-      if (!visibleLayers.has(layer.name)) return null;
+  const { pointMarkers, renderedGeoJSONLayers } = useMemo(() => {
+    const markers: JSX.Element[] = [];
+    const geoJsonLayers: (JSX.Element | null)[] = [];
+
+    layers.forEach((layer) => {
+      if (!visibleLayers.has(layer.name)) return;
 
       const currentColor = getLayerColor(layer.name, layer.color);
 
@@ -311,39 +315,31 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
         filteredFeatures = filterFeaturesByBounds(filteredFeatures, viewportBounds);
       }
 
-      const simplifiedFeatures = filteredFeatures.map(feature => {
-        if (selectedFeatureInfo && feature === selectedFeatureInfo.feature) {
-          return feature;
+      const pointFeatures: Feature[] = [];
+      const nonPointFeatures: Feature[] = [];
+
+      filteredFeatures.forEach(feature => {
+        if (feature.geometry?.type === 'Point') {
+          pointFeatures.push(feature);
+        } else {
+          nonPointFeatures.push(feature);
         }
-        return simplifyFeature(feature, currentZoom);
       });
 
-      const layerGeoJson = {
-        type: 'FeatureCollection' as const,
-        features: simplifiedFeatures
-      };
+      pointFeatures.forEach((feature, idx) => {
+        if (!feature.geometry || feature.geometry.type !== 'Point') return;
 
-      return (
-        <GeoJSON
-          key={`${layer.name}-${currentZoom}`}
-          data={layerGeoJson}
-          style={(feature) => {
-            const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
-            return {
-              color: isHighlighted ? '#2563eb' : currentColor,
-              weight: isHighlighted ? 3 : (currentZoom >= 14 ? 1.5 : 1),
-              fillColor: isHighlighted ? '#3b82f6' : currentColor,
-              fillOpacity: isHighlighted ? 0.5 : 0.3,
-            };
-          }}
-          onEachFeature={(feature, leafletLayer) => {
-            if (!feature.properties) return;
+        const [lng, lat] = feature.geometry.coordinates;
+        const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
 
-            if (userData?.role === 'city_hall_manager') {
-              leafletLayer.on({
-                click: (e) => {
+        markers.push(
+          <Marker
+            key={`${layer.name}-marker-${idx}`}
+            position={[lat, lng]}
+            eventHandlers={{
+              click: () => {
+                if (userData?.role === 'city_hall_manager') {
                   setSelectedFeatureInfo({ feature, layerName: layer.name });
-                  L.DomEvent.stopPropagation(e);
 
                   const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
 
@@ -355,25 +351,94 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                     setContractNotification(null);
                   }
                 }
-              });
-            } else {
-              const props = Object.entries(feature.properties)
-                .slice(0, 5)
-                .map(([key, value]) => `<b>${key}:</b> ${value}`)
-                .join('<br/>');
-
-              leafletLayer.bindPopup(
-                `<div><div style="color:${currentColor}; font-weight:bold">${layer.name}</div>${props}</div>`
-              );
-
-              if (searchResult && feature === searchResult) {
-                setTimeout(() => leafletLayer.openPopup(), 500);
               }
-            }
-          }}
-        />
-      );
+            }}
+          >
+            {userData?.role !== 'city_hall_manager' && feature.properties && (
+              <Popup>
+                <div>
+                  <div style={{ color: currentColor, fontWeight: 'bold' }}>{layer.name}</div>
+                  {Object.entries(feature.properties)
+                    .slice(0, 5)
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <b>{key}:</b> {value}
+                      </div>
+                    ))}
+                </div>
+              </Popup>
+            )}
+          </Marker>
+        );
+      });
+
+      if (nonPointFeatures.length > 0) {
+        const simplifiedFeatures = nonPointFeatures.map(feature => {
+          if (selectedFeatureInfo && feature === selectedFeatureInfo.feature) {
+            return feature;
+          }
+          return simplifyFeature(feature, currentZoom);
+        });
+
+        const layerGeoJson = {
+          type: 'FeatureCollection' as const,
+          features: simplifiedFeatures
+        };
+
+        geoJsonLayers.push(
+          <GeoJSON
+            key={`${layer.name}-${currentZoom}`}
+            data={layerGeoJson}
+            style={(feature) => {
+              const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
+              return {
+                color: isHighlighted ? '#2563eb' : currentColor,
+                weight: isHighlighted ? 3 : (currentZoom >= 14 ? 1.5 : 1),
+                fillColor: isHighlighted ? '#3b82f6' : currentColor,
+                fillOpacity: isHighlighted ? 0.5 : 0.3,
+              };
+            }}
+            onEachFeature={(feature, leafletLayer) => {
+              if (!feature.properties) return;
+
+              if (userData?.role === 'city_hall_manager') {
+                leafletLayer.on({
+                  click: (e) => {
+                    setSelectedFeatureInfo({ feature, layerName: layer.name });
+                    L.DomEvent.stopPropagation(e);
+
+                    const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
+
+                    if (cf && onCheckContract) {
+                      onCheckContract(String(cf)).then(exists => {
+                        setContractNotification(exists ? { cf: String(cf), exists: true } : null);
+                      });
+                    } else {
+                      setContractNotification(null);
+                    }
+                  }
+                });
+              } else {
+                const props = Object.entries(feature.properties)
+                  .slice(0, 5)
+                  .map(([key, value]) => `<b>${key}:</b> ${value}`)
+                  .join('<br/>');
+
+                leafletLayer.bindPopup(
+                  `<div><div style="color:${currentColor}; font-weight:bold">${layer.name}</div>${props}</div>`
+                );
+
+                if (searchResult && feature === searchResult) {
+                  setTimeout(() => leafletLayer.openPopup(), 500);
+                }
+              }
+            }}
+          />
+        );
+      }
     });
+
+    return { pointMarkers: markers, renderedGeoJSONLayers: geoJsonLayers };
   }, [layers, visibleLayers, viewportBounds, currentZoom, searchResult, selectedFeatureInfo, userData, onCheckContract, layerColors]);
 
   const isManager = userData?.role === 'city_hall_manager';
@@ -554,6 +619,16 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                 />
               </LayersControl.BaseLayer>
             </LayersControl>
+
+            <MarkerClusterGroup
+              chunkedLoading
+              maxClusterRadius={50}
+              spiderfyOnMaxZoom={true}
+              showCoverageOnHover={false}
+              zoomToBoundsOnClick={true}
+            >
+              {pointMarkers}
+            </MarkerClusterGroup>
 
             {renderedGeoJSONLayers}
             
