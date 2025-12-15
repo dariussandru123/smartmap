@@ -1,10 +1,9 @@
-import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, useMapEvents, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, useMapEvents, CircleMarker, Popup } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import * as L from 'leaflet';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Layers, ChevronDown, ChevronRight, Maximize, Minimize, Search, X, Info, FileText, ArrowRight, Palette, RotateCcw } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import type { ShapefileLayer } from '../utils/shapefileParser';
 import { useAuth } from '../contexts/AuthContext';
 import type { Feature } from 'geojson';
@@ -333,9 +332,16 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
         const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
 
         markers.push(
-          <Marker
+          <CircleMarker
             key={`${layer.name}-marker-${idx}`}
-            position={[lat, lng]}
+            center={[lat, lng]}
+            radius={3}
+            pathOptions={{
+              fillColor: isHighlighted ? '#ef4444' : '#000000',
+              fillOpacity: 1,
+              color: isHighlighted ? '#dc2626' : '#000000',
+              weight: 1
+            }}
             eventHandlers={{
               click: () => {
                 if (userData?.role === 'city_hall_manager') {
@@ -368,7 +374,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                 </div>
               </Popup>
             )}
-          </Marker>
+          </CircleMarker>
         );
       });
 
@@ -620,16 +626,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
               </LayersControl.BaseLayer>
             </LayersControl>
 
-            <MarkerClusterGroup
-              chunkedLoading
-              maxClusterRadius={50}
-              spiderfyOnMaxZoom={true}
-              showCoverageOnHover={false}
-              zoomToBoundsOnClick={true}
-            >
-              {pointMarkers}
-            </MarkerClusterGroup>
-
+            {pointMarkers}
             {renderedGeoJSONLayers}
             
           </MapContainer>
