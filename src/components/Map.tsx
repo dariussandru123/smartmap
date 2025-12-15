@@ -206,6 +206,11 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
     return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
   }, []);
 
+  const extractCFNumber = (str: string): string => {
+    const match = str.match(/\d+/);
+    return match ? match[0] : str;
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchError(null);
@@ -216,6 +221,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
     if (!searchQuery.trim()) return;
 
     const query = searchQuery.trim().toLowerCase();
+    const queryNumber = extractCFNumber(searchQuery.trim());
     let foundFeature: Feature | null = null;
     let foundLayerName = '';
 
@@ -223,11 +229,17 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
       for (const feature of layer.geoJson.features) {
         if (feature.properties) {
           const cf = feature.properties['Nr_CF'] || feature.properties['nr_cf'] || feature.properties['NR_CF'];
-          
-          if (cf && String(cf).toLowerCase() === query) {
-            foundFeature = feature;
-            foundLayerName = layer.name;
-            break;
+
+          if (cf) {
+            const cfStr = String(cf).toLowerCase();
+            const cfNumber = extractCFNumber(String(cf));
+
+            // Match if exact match, or if numeric parts match
+            if (cfStr === query || cfNumber === queryNumber || cfStr.includes(query) || query.includes(cfStr)) {
+              foundFeature = feature;
+              foundLayerName = layer.name;
+              break;
+            }
           }
         }
       }
@@ -240,7 +252,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
       if (!visibleLayers.has(foundLayerName)) {
         setVisibleLayers(prev => new Set(prev).add(foundLayerName));
       }
-      
+
       if (foundFeature.properties && onCheckContract) {
         const cf = foundFeature.properties['Nr_CF'] || foundFeature.properties['nr_cf'] || foundFeature.properties['NR_CF'];
         if (cf) {
