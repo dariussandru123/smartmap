@@ -184,13 +184,28 @@ export default function AdminRegistryViewer({ uatAccounts }: AdminRegistryViewer
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.parcelaId.toLowerCase().includes(term) ||
-        c.nrCadastral.toLowerCase().includes(term) ||
-        c.numeDenumire.toLowerCase().includes(term) ||
-        c.localizare.toLowerCase().includes(term) ||
-        (c.uatName && c.uatName.toLowerCase().includes(term))
-      );
+      const extractCFNumber = (str: string): string => {
+        const match = str.match(/\d+/);
+        return match ? match[0] : str;
+      };
+      const searchNumber = extractCFNumber(searchTerm);
+
+      filtered = filtered.filter(c => {
+        const parcelaNumber = extractCFNumber(c.parcelaId);
+        const cadastralNumber = extractCFNumber(c.nrCadastral);
+
+        return (
+          c.parcelaId.toLowerCase().includes(term) ||
+          c.nrCadastral.toLowerCase().includes(term) ||
+          c.numeDenumire.toLowerCase().includes(term) ||
+          c.localizare.toLowerCase().includes(term) ||
+          (c.uatName && c.uatName.toLowerCase().includes(term)) ||
+          parcelaNumber.includes(searchNumber) ||
+          cadastralNumber.includes(searchNumber) ||
+          searchNumber.includes(parcelaNumber) ||
+          searchNumber.includes(cadastralNumber)
+        );
+      });
     }
 
     // Sort

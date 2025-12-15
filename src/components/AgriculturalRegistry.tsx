@@ -105,11 +105,24 @@ export default function AgriculturalRegistry({ initialSearchTerm = '' }: Agricul
     );
   };
 
-  const filteredContracts = contracts.filter(c => 
-    c.numeDenumire.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.numarContract.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.parcelaId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const extractCFNumber = (str: string): string => {
+    const match = str.match(/\d+/);
+    return match ? match[0] : str;
+  };
+
+  const filteredContracts = contracts.filter(c => {
+    const searchLower = searchTerm.toLowerCase();
+    const searchNumber = extractCFNumber(searchTerm);
+    const parcelaNumber = extractCFNumber(c.parcelaId);
+
+    return (
+      c.numeDenumire.toLowerCase().includes(searchLower) ||
+      c.numarContract.toLowerCase().includes(searchLower) ||
+      c.parcelaId.toLowerCase().includes(searchLower) ||
+      parcelaNumber.includes(searchNumber) ||
+      searchNumber.includes(parcelaNumber)
+    );
+  });
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
