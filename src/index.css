@@ -1,3 +1,41 @@
+@import 'leaflet.markercluster/dist/MarkerCluster.css';
+@import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.custom-marker-icon {
+  background: none !important;
+  border: none !important;
+}
+
+.marker-cluster-small {
+  background-color: rgba(59, 130, 246, 0.6);
+}
+
+.marker-cluster-small div {
+  background-color: rgba(59, 130, 246, 0.8);
+  color: white;
+  font-weight: bold;
+}
+
+.marker-cluster-medium {
+  background-color: rgba(37, 99, 235, 0.6);
+}
+
+.marker-cluster-medium div {
+  background-color: rgba(37, 99, 235, 0.8);
+  color: white;
+  font-weight: bold;
+}
+
+.marker-cluster-large {
+  background-color: rgba(29, 78, 216, 0.6);
+}
+
+.marker-cluster-large div {
+  background-color: rgba(29, 78, 216, 0.8);
+  color: white;
+  font-weight: bold;
+}

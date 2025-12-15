@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import type { ShapefileLayer } from '../utils/shapefileParser';
 import { useAuth } from '../contexts/AuthContext';
 import type { Feature } from 'geojson';
+import MarkerClusterGroup from './MarkerClusterGroup';
 
 interface MapProps {
   layers: ShapefileLayer[];
@@ -279,6 +280,54 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
 
       const currentColor = getLayerColor(layer.name, layer.color);
 
+      const hasPointGeometry = layer.geoJson.features.some(
+        (f) => f.geometry.type === 'Point'
+      );
+
+      if (hasPointGeometry) {
+        const points = layer.geoJson.features
+          .filter((f) => f.geometry.type === 'Point')
+          .map((f) => ({
+            lat: (f.geometry as any).coordinates[1],
+            lng: (f.geometry as any).coordinates[0],
+            properties: f.properties || {},
+            feature: f,
+          }));
+
+        return (
+          <MarkerClusterGroup
+            key={layer.name}
+            points={points}
+            color={currentColor}
+            layerName={layer.name}
+            onFeatureClick={
+              userData?.role === 'city_hall_manager'
+                ? (feature) => {
+                    setSelectedFeatureInfo({ feature, layerName: layer.name });
+                    if (onCheckContract) {
+                      const cf =
+                        feature.properties?.['Nr_CF'] ||
+                        feature.properties?.['nr_cf'] ||
+                        feature.properties?.['NR_CF'];
+                      if (cf) {
+                        onCheckContract(String(cf)).then((exists) => {
+                          if (exists) {
+                            setContractNotification({ cf: String(cf), exists: true });
+                          } else {
+                            setContractNotification(null);
+                          }
+                        });
+                      } else {
+                        setContractNotification(null);
+                      }
+                    }
+                  }
+                : undefined
+            }
+          />
+        );
+      }
+
       return (
         <GeoJSON
           key={layer.name}
@@ -298,13 +347,13 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                 .slice(0, 5)
                 .map(([key, value]) => `<b>${key}:</b> ${value}`)
                 .join('<br/>');
-              
+
               if (userData?.role !== 'city_hall_manager') {
                 leafletLayer.bindPopup(
                   `<div><div style="color:${currentColor}; font-weight:bold">${layer.name}</div>${props}</div>`
                 );
               }
-              
+
               leafletLayer.on({
                 click: (e) => {
                   if (userData?.role === 'city_hall_manager') {
@@ -313,7 +362,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
 
                     if (onCheckContract) {
                       const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
-                      
+
                       if (cf) {
                         onCheckContract(String(cf)).then(exists => {
                           if (exists) {
