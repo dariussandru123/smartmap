@@ -160,7 +160,7 @@ export default function UrbanismCertificateForm({ onClose, onSuccess, initialCf,
       setFoundInGis(true);
 
       // --- 1. SUPRAFAȚA (AREA) ---
-      const rawArea = findProperty(props, ['S_Teren', 'Suprafata', 'area', 'mp', 'st']);
+      const rawArea = findProperty(props, ['SupTerAct', 'S_Teren', 'Suprafata', 'area', 'mp', 'st']);
       const area = extractNumericValue(rawArea);
 
       // --- 2. PROPRIETAR ---
