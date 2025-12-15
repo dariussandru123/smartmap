@@ -228,7 +228,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
     for (const layer of layers) {
       for (const feature of layer.geoJson.features) {
         if (feature.properties) {
-          const cf = feature.properties['Nr_CF'] || feature.properties['nr_cf'] || feature.properties['NR_CF'];
+          const cf = feature.properties['Nr. CF'] || feature.properties['Nr_CF'] || feature.properties['nr_cf'] || feature.properties['NR_CF'];
 
           if (cf) {
             const cfStr = String(cf).toLowerCase();
@@ -254,7 +254,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
       }
 
       if (foundFeature.properties && onCheckContract) {
-        const cf = foundFeature.properties['Nr_CF'] || foundFeature.properties['nr_cf'] || foundFeature.properties['NR_CF'];
+        const cf = foundFeature.properties['Nr. CF'] || foundFeature.properties['Nr_CF'] || foundFeature.properties['nr_cf'] || foundFeature.properties['NR_CF'];
         if (cf) {
           const cfNumber = extractCFNumber(String(cf));
           onCheckContract(String(cf)).then(exists => {
@@ -319,6 +319,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                     setSelectedFeatureInfo({ feature, layerName: layer.name });
                     if (onCheckContract) {
                       const cf =
+                        feature.properties?.['Nr. CF'] ||
                         feature.properties?.['Nr_CF'] ||
                         feature.properties?.['nr_cf'] ||
                         feature.properties?.['NR_CF'];
@@ -375,7 +376,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                     L.DomEvent.stopPropagation(e);
 
                     if (onCheckContract) {
-                      const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
+                      const cf = feature.properties?.['Nr. CF'] || feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
 
                       if (cf) {
                         const cfNumber = extractCFNumber(String(cf));
