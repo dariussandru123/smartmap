@@ -256,9 +256,10 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
       if (foundFeature.properties && onCheckContract) {
         const cf = foundFeature.properties['Nr_CF'] || foundFeature.properties['nr_cf'] || foundFeature.properties['NR_CF'];
         if (cf) {
+          const cfNumber = extractCFNumber(String(cf));
           onCheckContract(String(cf)).then(exists => {
             if (exists) {
-              setContractNotification({ cf: String(cf), exists: true });
+              setContractNotification({ cf: cfNumber, exists: true });
             }
           });
         }
@@ -322,9 +323,10 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                         feature.properties?.['nr_cf'] ||
                         feature.properties?.['NR_CF'];
                       if (cf) {
+                        const cfNumber = extractCFNumber(String(cf));
                         onCheckContract(String(cf)).then((exists) => {
                           if (exists) {
-                            setContractNotification({ cf: String(cf), exists: true });
+                            setContractNotification({ cf: cfNumber, exists: true });
                           } else {
                             setContractNotification(null);
                           }
@@ -376,9 +378,10 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
                       const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
 
                       if (cf) {
+                        const cfNumber = extractCFNumber(String(cf));
                         onCheckContract(String(cf)).then(exists => {
                           if (exists) {
-                            setContractNotification({ cf: String(cf), exists: true });
+                            setContractNotification({ cf: cfNumber, exists: true });
                           } else {
                             setContractNotification(null);
                           }

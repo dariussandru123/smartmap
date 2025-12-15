@@ -123,16 +123,35 @@ export const contractService = {
    */
   async checkContractExists(uatId: string, cf: string) {
     try {
-      // Query for contracts with this parcelaId (CF)
-      // We check for any contract, but we could restrict to 'activ' if needed
+      // Extract numeric part from CF for flexible matching
+      const extractNumber = (str: string): string => {
+        const match = str.match(/\d+/);
+        return match ? match[0] : str;
+      };
+
+      const cfNumber = extractNumber(cf);
+
+      // Get all contracts for this UAT
       const q = query(
         collection(db, COLLECTION_NAME),
-        where('uatId', '==', uatId),
-        where('parcelaId', '==', cf)
+        where('uatId', '==', uatId)
       );
 
       const querySnapshot = await getDocs(q);
-      return !querySnapshot.empty;
+
+      // Check if any contract matches (by exact match or numeric part)
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data();
+        const parcelaId = data.parcelaId || '';
+        const parcelaNumber = extractNumber(parcelaId);
+
+        // Match if: exact match, or numeric parts match
+        if (parcelaId === cf || parcelaNumber === cfNumber || parcelaId.includes(cfNumber) || cf.includes(parcelaId)) {
+          return true;
+        }
+      }
+
+      return false;
     } catch (error) {
       console.error('Error checking contract existence:', error);
       return false;
