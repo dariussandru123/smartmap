@@ -42,7 +42,7 @@ function AppContent() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">PC</span>
+                <span className="text-white font-bold text-sm">SM</span>
               </div>
               <h1 className="text-xl font-bold text-gray-900">SmartMap GIS Stereographic</h1>
             </div>
