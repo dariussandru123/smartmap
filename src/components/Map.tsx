@@ -161,7 +161,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
 
   useEffect(() => {
     if (layers.length > 0) {
-      setVisibleLayers(new Set(layers.map(l => l.name)));
+      setVisibleLayers(new Set());
     }
   }, [layers]);
 
