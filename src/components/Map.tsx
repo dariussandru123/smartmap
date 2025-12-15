@@ -331,19 +331,32 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
         const [lng, lat] = feature.geometry.coordinates;
         const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
 
+        const popupContent = feature.properties ? (
+          <div>
+            <div style={{ color: currentColor, fontWeight: 'bold' }}>{layer.name}</div>
+            {Object.entries(feature.properties)
+              .slice(0, 5)
+              .map(([key, value]) => (
+                <div key={key}>
+                  <b>{key}:</b> {String(value)}
+                </div>
+              ))}
+          </div>
+        ) : null;
+
         markers.push(
           <CircleMarker
             key={`${layer.name}-marker-${idx}`}
             center={[lat, lng]}
-            radius={3}
+            radius={6}
             pathOptions={{
               fillColor: isHighlighted ? '#ef4444' : '#000000',
-              fillOpacity: 1,
-              color: isHighlighted ? '#dc2626' : '#000000',
+              fillOpacity: 0.8,
+              color: '#ffffff',
               weight: 1
             }}
             eventHandlers={{
-              click: () => {
+              click: (e) => {
                 if (userData?.role === 'city_hall_manager') {
                   setSelectedFeatureInfo({ feature, layerName: layer.name });
 
@@ -360,19 +373,8 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
               }
             }}
           >
-            {userData?.role !== 'city_hall_manager' && feature.properties && (
-              <Popup>
-                <div>
-                  <div style={{ color: currentColor, fontWeight: 'bold' }}>{layer.name}</div>
-                  {Object.entries(feature.properties)
-                    .slice(0, 5)
-                    .map(([key, value]) => (
-                      <div key={key}>
-                        <b>{key}:</b> {value}
-                      </div>
-                    ))}
-                </div>
-              </Popup>
+            {userData?.role !== 'city_hall_manager' && popupContent && (
+              <Popup>{popupContent}</Popup>
             )}
           </CircleMarker>
         );
