@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet.markercluster';
 
 interface MarkerClusterGroupProps {
   children?: React.ReactNode;
@@ -26,7 +27,25 @@ export default function MarkerClusterGroup({
   useEffect(() => {
     if (!map || points.length === 0) return;
 
-    const layerGroup = L.layerGroup();
+    const markerClusterGroup = L.markerClusterGroup({
+      chunkedLoading: true,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      maxClusterRadius: 50,
+      iconCreateFunction: (cluster) => {
+        const count = cluster.getChildCount();
+        let size = 'small';
+        if (count > 100) size = 'large';
+        else if (count > 10) size = 'medium';
+
+        return L.divIcon({
+          html: `<div><span>${count}</span></div>`,
+          className: `marker-cluster marker-cluster-${size}`,
+          iconSize: L.point(40, 40),
+        });
+      },
+    });
 
     const customIcon = L.divIcon({
       html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg">
@@ -56,13 +75,13 @@ export default function MarkerClusterGroup({
         });
       }
 
-      layerGroup.addLayer(marker);
+      markerClusterGroup.addLayer(marker);
     });
 
-    map.addLayer(layerGroup);
+    map.addLayer(markerClusterGroup);
 
     return () => {
-      map.removeLayer(layerGroup);
+      map.removeLayer(markerClusterGroup);
     };
   }, [map, points, color, layerName, onFeatureClick]);
 
