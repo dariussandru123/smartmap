@@ -1,12 +1,13 @@
 import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, useMapEvents } from 'react-leaflet';
 import { LatLngBounds } from 'leaflet';
 import * as L from 'leaflet';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Layers, ChevronDown, ChevronRight, Maximize, Minimize, Search, X, Info, FileText, ArrowRight, Palette, RotateCcw } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import type { ShapefileLayer } from '../utils/shapefileParser';
 import { useAuth } from '../contexts/AuthContext';
 import type { Feature } from 'geojson';
+import { buildFeatureIndex, filterFeaturesByBounds, simplifyFeature, type FeatureIndex } from '../utils/mapOptimizations';
 
 interface MapProps {
   layers: ShapefileLayer[];
@@ -78,6 +79,31 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
   return null;
 }
 
+// Component to track viewport changes
+function ViewportTracker({ onViewportChange }: { onViewportChange: (bounds: LatLngBounds, zoom: number) => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const updateViewport = () => {
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
+      onViewportChange(bounds, zoom);
+    };
+
+    updateViewport();
+
+    map.on('moveend', updateViewport);
+    map.on('zoomend', updateViewport);
+
+    return () => {
+      map.off('moveend', updateViewport);
+      map.off('zoomend', updateViewport);
+    };
+  }, [map, onViewportChange]);
+
+  return null;
+}
+
 export default function Map({ layers, bounds, onCheckContract, onRedirectToRegistry }: MapProps) {
   const defaultCenter: [number, number] = [45.9432, 24.9668];
   const defaultZoom = 7;
@@ -99,9 +125,18 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
   const [searchResult, setSearchResult] = useState<Feature | null>(null);
   const [selectedFeatureInfo, setSelectedFeatureInfo] = useState<SelectedFeatureInfo | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  
+
   // Contract Notification State
   const [contractNotification, setContractNotification] = useState<{cf: string, exists: boolean} | null>(null);
+
+  // Viewport optimization state
+  const [viewportBounds, setViewportBounds] = useState<LatLngBounds | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(defaultZoom);
+
+  // Build feature index for fast search
+  const featureIndex = useMemo<FeatureIndex>(() => {
+    return buildFeatureIndex(layers);
+  }, [layers]);
 
   // Load custom colors from localStorage on mount
   useEffect(() => {
@@ -129,6 +164,11 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
       setVisibleLayers(new Set(layers.map(l => l.name)));
     }
   }, [layers]);
+
+  const handleViewportChange = useCallback((bounds: LatLngBounds, zoom: number) => {
+    setViewportBounds(bounds);
+    setCurrentZoom(zoom);
+  }, []);
 
   // Group layers logic
   const groupedLayers = useMemo(() => {
@@ -215,33 +255,19 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
     if (!searchQuery.trim()) return;
 
     const query = searchQuery.trim().toLowerCase();
-    let foundFeature: Feature | null = null;
-    let foundLayerName = '';
+    const result = featureIndex[query];
 
-    for (const layer of layers) {
-      for (const feature of layer.geoJson.features) {
-        if (feature.properties) {
-          const cf = feature.properties['Nr_CF'] || feature.properties['nr_cf'] || feature.properties['NR_CF'];
-          
-          if (cf && String(cf).toLowerCase() === query) {
-            foundFeature = feature;
-            foundLayerName = layer.name;
-            break;
-          }
-        }
-      }
-      if (foundFeature) break;
-    }
+    if (result) {
+      const { feature, layerName } = result;
+      setSearchResult(feature);
+      setSelectedFeatureInfo({ feature, layerName });
 
-    if (foundFeature) {
-      setSearchResult(foundFeature);
-      setSelectedFeatureInfo({ feature: foundFeature, layerName: foundLayerName });
-      if (!visibleLayers.has(foundLayerName)) {
-        setVisibleLayers(prev => new Set(prev).add(foundLayerName));
+      if (!visibleLayers.has(layerName)) {
+        setVisibleLayers(prev => new Set(prev).add(layerName));
       }
-      
-      if (foundFeature.properties && onCheckContract) {
-        const cf = foundFeature.properties['Nr_CF'] || foundFeature.properties['nr_cf'] || foundFeature.properties['NR_CF'];
+
+      if (feature.properties && onCheckContract) {
+        const cf = feature.properties['Nr_CF'] || feature.properties['nr_cf'] || feature.properties['NR_CF'];
         if (cf) {
           onCheckContract(String(cf)).then(exists => {
             if (exists) {
@@ -279,58 +305,68 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
 
       const currentColor = getLayerColor(layer.name, layer.color);
 
+      let filteredFeatures = layer.geoJson.features;
+
+      if (viewportBounds && currentZoom >= 10) {
+        filteredFeatures = filterFeaturesByBounds(filteredFeatures, viewportBounds);
+      }
+
+      const simplifiedFeatures = filteredFeatures.map(feature => {
+        if (selectedFeatureInfo && feature === selectedFeatureInfo.feature) {
+          return feature;
+        }
+        return simplifyFeature(feature, currentZoom);
+      });
+
+      const layerGeoJson = {
+        type: 'FeatureCollection' as const,
+        features: simplifiedFeatures
+      };
+
       return (
         <GeoJSON
-          key={layer.name}
-          data={layer.geoJson}
+          key={`${layer.name}-${currentZoom}`}
+          data={layerGeoJson}
           style={(feature) => {
             const isHighlighted = selectedFeatureInfo && feature === selectedFeatureInfo.feature;
             return {
               color: isHighlighted ? '#2563eb' : currentColor,
-              weight: isHighlighted ? 3 : 1.5,
+              weight: isHighlighted ? 3 : (currentZoom >= 14 ? 1.5 : 1),
               fillColor: isHighlighted ? '#3b82f6' : currentColor,
               fillOpacity: isHighlighted ? 0.5 : 0.3,
             };
           }}
           onEachFeature={(feature, leafletLayer) => {
-            if (feature.properties) {
+            if (!feature.properties) return;
+
+            if (userData?.role === 'city_hall_manager') {
+              leafletLayer.on({
+                click: (e) => {
+                  setSelectedFeatureInfo({ feature, layerName: layer.name });
+                  L.DomEvent.stopPropagation(e);
+
+                  const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
+
+                  if (cf && onCheckContract) {
+                    onCheckContract(String(cf)).then(exists => {
+                      setContractNotification(exists ? { cf: String(cf), exists: true } : null);
+                    });
+                  } else {
+                    setContractNotification(null);
+                  }
+                }
+              });
+            } else {
               const props = Object.entries(feature.properties)
                 .slice(0, 5)
                 .map(([key, value]) => `<b>${key}:</b> ${value}`)
                 .join('<br/>');
-              
-              if (userData?.role !== 'city_hall_manager') {
-                leafletLayer.bindPopup(
-                  `<div><div style="color:${currentColor}; font-weight:bold">${layer.name}</div>${props}</div>`
-                );
-              }
-              
-              leafletLayer.on({
-                click: (e) => {
-                  if (userData?.role === 'city_hall_manager') {
-                    setSelectedFeatureInfo({ feature, layerName: layer.name });
-                    L.DomEvent.stopPropagation(e);
 
-                    if (onCheckContract) {
-                      const cf = feature.properties?.['Nr_CF'] || feature.properties?.['nr_cf'] || feature.properties?.['NR_CF'];
-                      
-                      if (cf) {
-                        onCheckContract(String(cf)).then(exists => {
-                          if (exists) {
-                            setContractNotification({ cf: String(cf), exists: true });
-                          } else {
-                            setContractNotification(null);
-                          }
-                        });
-                      } else {
-                        setContractNotification(null);
-                      }
-                    }
-                  }
-                }
-              });
+              leafletLayer.bindPopup(
+                `<div><div style="color:${currentColor}; font-weight:bold">${layer.name}</div>${props}</div>`
+              );
 
-              if (searchResult && feature === searchResult && userData?.role !== 'city_hall_manager') {
+              if (searchResult && feature === searchResult) {
                 setTimeout(() => leafletLayer.openPopup(), 500);
               }
             }
@@ -338,7 +374,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
         />
       );
     });
-  }, [layers, visibleLayers, searchResult, selectedFeatureInfo, userData, onCheckContract, layerColors]);
+  }, [layers, visibleLayers, viewportBounds, currentZoom, searchResult, selectedFeatureInfo, userData, onCheckContract, layerColors]);
 
   const isManager = userData?.role === 'city_hall_manager';
   const showPanel = isManager && selectedFeatureInfo;
@@ -497,6 +533,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
           >
             <MapController bounds={bounds} targetFeature={searchResult} />
             <MapResizer isPanelOpen={!!showPanel} />
+            <ViewportTracker onViewportChange={handleViewportChange} />
             <MapClickHandler onMapClick={() => {
               setSelectedFeatureInfo(null);
               setContractNotification(null);
