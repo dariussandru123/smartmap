@@ -36,7 +36,7 @@ function MapController({ bounds, targetFeature }: { bounds: LatLngBounds | null,
 
   useEffect(() => {
     if (bounds && !targetFeature) {
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: true, duration: 1 });
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 19, animate: true, duration: 1 });
     }
   }, [bounds, map, targetFeature]);
 
@@ -46,7 +46,7 @@ function MapController({ bounds, targetFeature }: { bounds: LatLngBounds | null,
         const l = L.geoJSON(targetFeature);
         const featureBounds = l.getBounds();
         if (featureBounds.isValid()) {
-          map.fitBounds(featureBounds, { padding: [100, 100], maxZoom: 18, animate: true, duration: 1.5 });
+          map.fitBounds(featureBounds, { padding: [100, 100], maxZoom: 22, animate: true, duration: 1.5 });
         }
       } catch (e) {
         console.error("Error zooming to feature", e);
@@ -556,6 +556,7 @@ export default function Map({ layers, bounds, onCheckContract, onRedirectToRegis
           <MapContainer
             center={defaultCenter}
             zoom={defaultZoom}
+            maxZoom={22}
             style={{ height: '100%', width: '100%' }}
             zoomControl={true}
             preferCanvas={true}
